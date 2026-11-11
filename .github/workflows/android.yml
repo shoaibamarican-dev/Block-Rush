@@ -36,6 +36,22 @@ jobs:
           npx cap add android
           npx cap sync android
 
+      - name: Set app icon
+        run: |
+          for d in android/app/src/main/res/mipmap-*; do
+            case "$d" in
+              *xxxhdpi) s=192 ;;
+              *xxhdpi) s=144 ;;
+              *xhdpi) s=96 ;;
+              *hdpi) s=72 ;;
+              *mdpi) s=48 ;;
+              *) continue ;;
+            esac
+            convert assets/icon.png -resize ${s}x${s} "$d/ic_launcher.png"
+            convert assets/icon.png -resize ${s}x${s} "$d/ic_launcher_round.png"
+            convert assets/icon.png -resize ${s}x${s} "$d/ic_launcher_foreground.png"
+          done
+
       - name: Fix Kotlin duplicate classes
         run: |
           echo "configurations.all { exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8' }" >> android/app/build.gradle

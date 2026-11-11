@@ -1,5 +1,6 @@
 (() => {
   const N = 8;
+  const MAX_LEVEL = 100;
   const PALETTES = [
     ['#ff3b3b', '#ffd23f', '#3b82f6', '#ff8a1f', '#22c55e'],
     ['#22d3ee', '#a855f7', '#f472b6', '#4ade80', '#facc15'],
@@ -23,23 +24,25 @@
     [[0,0],[0,1],[0,2],[1,0],[2,0]]
   ];
   const EASY = SHAPES.filter(s => s.length <= 3);
+  const CHECK = '<svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" fill="#ffffff"/></svg>';
+  const LOCK = '<svg viewBox="0 0 24 24"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm2 0h6V8a3 3 0 0 0-6 0z" fill="#cbd5e1"/></svg>';
 
   const $ = (id) => document.getElementById(id);
-  const welcome = $('welcome'), game = $('game'), acceptBtn = $('acceptBtn');
-  const notifyModal = $('notifyModal'), notifyYes = $('notifyYes'), notifyNo = $('notifyNo');
-  const levelModal = $('levelModal'), levelText = $('levelText'), nextBtn = $('nextBtn');
-  const overModal = $('overModal'), overText = $('overText'), retryBtn = $('retryBtn');
-  const gridEl = $('grid'), fxEl = $('fx'), trayEl = $('tray');
-  const crownScore = $('crownScore'), bigScore = $('bigScore');
-  const levelLabel = $('levelLabel'), progress = $('progress');
+  const welcome = $('welcome'), game = $('game'), menu = $('menu'), acceptBtn = $('acceptBtn');
+  const menuBtn = $('menuBtn'), backBtn = $('backBtn'), levelGrid = $('levelGrid');
+  const levelModal = $('levelModal'), levelText = $('levelText'), nextBtn = $('nextBtn'), levelMenuBtn = $('levelMenuBtn');
+  const overModal = $('overModal'), overText = $('overText'), retryBtn = $('retryBtn'), overMenuBtn = $('overMenuBtn');
+  const gridEl = $('grid'), fxEl = $('fx'), trayEl = $('tray'), bgEl = $('bg');
+  const crownScore = $('crownScore'), bigScore = $('bigScore'), levelLabel = $('levelLabel'), progress = $('progress');
   const soundBtn = $('soundBtn'), hand = $('hand');
 
-  let cells = [], grid = [], tray = [];
-  let palette = PALETTES[0];
-  let level = 1, levelLines = 0, levelTarget = 1;
-  let score = 0, best = Number(localStorage.getItem('blockrush_best') || 0);
-  let busy = false, locked = false, handDone = false, drag = null;
-  let audioCtx = null;
+  let cells = [], grid = [], tray = [], palette = PALETTES[0];
+  let level = 1, levelLines = 0, levelTarget = 1, levelStartScore = 0, score = 0;
+  let highest = Number(localStorage.getItem('blockrush_highest') || 0);
+  let best = Number(localStorage.getItem('blockrush_best') || 0);
+  let busy = false, handDone = false, drag = null, audioCtx = null;
+  let gameState = 'playing';
+  let menuOpen = false;
   let soundOn = localStorage.getItem('blockrush_sound') !== 'off';
 
   function show(el) { el.classList.remove('hidden'); }
@@ -67,7 +70,7 @@
       g.connect(audioCtx.destination);
       o.start(t);
       o.stop(t + dur + 0.05);
-    } catch (e) { /* ignore audio errors */ }
+    } catch (e) { /* ignore */ }
   }
 
   function noise(delay, dur, vol) {
@@ -118,6 +121,23 @@
     }
   }
 
+  function makeBg() {
+    bgEl.innerHTML = '';
+    const colors = ['#ff3b3b', '#ffd23f', '#3b82f6', '#22d3ee', '#a855f7', '#4ade80'];
+    for (let i = 0; i < 16; i++) {
+      const d = document.createElement('div');
+      d.className = 'bgb';
+      const s = 18 + Math.random() * 34;
+      d.style.width = s + 'px';
+      d.style.height = s + 'px';
+      d.style.left = (Math.random() * 100) + '%';
+      d.style.background = colors[i % colors.length];
+      d.style.animationDuration = (14 + Math.random() * 12) + 's';
+      d.style.animationDelay = (-Math.random() * 20) + 's';
+      bgEl.appendChild(d);
+    }
+  }
+
   function currentPool() { return level <= 2 ? EASY : SHAPES; }
 
   function randPiece() {
@@ -128,9 +148,7 @@
     };
   }
 
-  function newTray() {
-    tray = [randPiece(), randPiece(), randPiece()];
-  }
+  function newTray() { tray = [randPiece(), randPiece(), randPiece()]; }
 
   function fullLinesOf(g) {
     const out = [];
@@ -180,6 +198,10 @@
     return null;
   }
 
+  function targetFor(n) {
+    return n <= 10 ? n : Math.min(10 + Math.floor((n - 10) / 6), 20);
+  }
+
   function makeLevel(n) {
     const rowsCount = Math.min(1 + Math.floor((n - 1) / 2), 4);
     const gapLen = n === 1 ? 2 : 1 + Math.floor(Math.random() * 2);
@@ -204,21 +226,9 @@
         g[r * N + c] = palette[Math.floor(Math.random() * palette.length)];
         placedCount++;
       }
-      if (fullLinesOf(g).length === 0) return { grid: g, target: rowsCount, gapLen };
+      if (fullLinesOf(g).length === 0) return { grid: g, gapLen };
     }
-    return { grid: new Array(N * N).fill(null), target: 1, gapLen: 2 };
-  }
-
-  function renderTray() {
-    trayEl.innerHTML = '';
-    tray.forEach((p, i) => {
-      const slot = document.createElement('div');
-      slot.className = 'slot';
-      slot.dataset.i = i;
-      if (p) slot.appendChild(makePiece(p.shape, p.color, 26, 3));
-      else slot.classList.add('empty');
-      trayEl.appendChild(slot);
-    });
+    return { grid: new Array(N * N).fill(null), gapLen: 2 };
   }
 
   function makePiece(shape, color, size, gap) {
@@ -241,6 +251,24 @@
     return wrap;
   }
 
+  function renderTray() {
+    trayEl.innerHTML = '';
+    tray.forEach((p, i) => {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.dataset.i = i;
+      if (p) {
+        const piece = makePiece(p.shape, p.color, 26, 3);
+        piece.classList.add('bob');
+        piece.style.animationDelay = (-Math.random() * 2.6) + 's';
+        slot.appendChild(piece);
+      } else {
+        slot.classList.add('empty');
+      }
+      trayEl.appendChild(slot);
+    });
+  }
+
   function updateHud() {
     crownScore.textContent = score;
     bigScore.textContent = score;
@@ -248,11 +276,15 @@
     progress.textContent = 'Lines ' + levelLines + '/' + levelTarget;
   }
 
-  function render(clearSet) {
+  function render(clearSet, popSet) {
     cells.forEach((el, i) => {
       const v = grid[i];
-      el.className = 'cell' + (v ? ' filled' : '') + (clearSet && clearSet.has(i) ? ' clearing' : '');
-      el.style.background = v ? v : '';
+      let cls = 'cell';
+      if (v) cls += ' filled';
+      if (clearSet && clearSet.has(i)) cls += ' clearing';
+      else if (popSet && popSet.has(i)) cls += ' pop';
+      el.className = cls;
+      el.style.background = v || '';
     });
     renderTray();
     updateHud();
@@ -261,7 +293,7 @@
   function hideHand() { hand.classList.remove('show'); }
 
   function showHint() {
-    if (level !== 1 || handDone || locked || drag) { hideHand(); return; }
+    if (level !== 1 || handDone || drag || menuOpen || gameState !== 'playing') { hideHand(); return; }
     const h = findHint();
     if (!h) { hideHand(); return; }
     const slot = trayEl.children[h.idx];
@@ -320,7 +352,9 @@
     });
 
     const firstLine = lines[0];
-    const anchor = firstLine.t === 'r' ? cells[firstLine.i * N + Math.floor(N / 2)] : cells[Math.floor(N / 2) * N + firstLine.i];
+    const anchor = firstLine.t === 'r'
+      ? cells[firstLine.i * N + Math.floor(N / 2)]
+      : cells[Math.floor(N / 2) * N + firstLine.i];
     const pop = document.createElement('div');
     pop.className = 'pop-text';
     pop.textContent = '+' + bonus;
@@ -346,7 +380,12 @@
 
   function place(idx, r0, c0) {
     const p = tray[idx];
-    p.shape.forEach(([dr, dc]) => { grid[(r0 + dr) * N + (c0 + dc)] = p.color; });
+    const popSet = new Set();
+    p.shape.forEach(([dr, dc]) => {
+      const i = (r0 + dr) * N + (c0 + dc);
+      grid[i] = p.color;
+      popSet.add(i);
+    });
     score += p.shape.length;
     tray[idx] = null;
     handDone = true;
@@ -363,56 +402,119 @@
       const bonus = lines.length * 10 + (lines.length > 1 ? (lines.length - 1) * 20 : 0);
       score += bonus;
       levelLines += lines.length;
-      render(clearSet);
+      render(clearSet, popSet);
       spawnFx(lines, bonus);
       sfxClear();
       setTimeout(() => {
         clearSet.forEach(i => { grid[i] = null; });
         busy = false;
-        afterMove();
+        afterMove(null);
       }, 380);
     } else {
-      afterMove();
+      afterMove(popSet);
     }
   }
 
-  function afterMove() {
+  function afterMove(popSet) {
     if (tray.every(p => !p)) newTray();
     if (score > best) {
       best = score;
       localStorage.setItem('blockrush_best', String(best));
     }
-    render();
+    render(null, popSet);
     if (levelLines >= levelTarget) { levelDone(); return; }
     if (!tray.some(p => p && hasSpot(p.shape))) { gameOver(); return; }
+    if (level === 1 && !handDone) showHint();
+  }
+
+  function buildMenu() {
+    levelGrid.innerHTML = '';
+    for (let n = 1; n <= MAX_LEVEL; n++) {
+      const b = document.createElement('button');
+      b.className = 'lv';
+      if (n <= highest) {
+        b.classList.add('done');
+        b.innerHTML = '<span>' + n + '</span>';
+      } else if (n === highest + 1) {
+        b.classList.add('current');
+        b.textContent = n;
+      } else {
+        b.classList.add('locked');
+        b.innerHTML = LOCK;
+      }
+      b.addEventListener('click', () => {
+        ensureAudio();
+        if (n > highest + 1) {
+          b.classList.remove('shake');
+          void b.offsetWidth;
+          b.classList.add('shake');
+          sfxClick();
+          return;
+        }
+        sfxClick();
+        closeMenuAndStart(n);
+      });
+      levelGrid.appendChild(b);
+    }
+  }
+
+  function openMenu() {
+    ensureAudio();
+    buildMenu();
+    menuOpen = true;
+    hideHand();
+    hide(levelModal);
+    hide(overModal);
+    menu.classList.add('active');
+  }
+
+  function closeMenu() {
+    menu.classList.remove('active');
+    menuOpen = false;
+    if (gameState === 'over') show(overModal);
+    else if (gameState === 'complete') show(levelModal);
+    else if (level === 1 && !handDone) showHint();
+  }
+
+  function closeMenuAndStart(n) {
+    menu.classList.remove('active');
+    menuOpen = false;
+    startLevel(n);
   }
 
   function levelDone() {
-    locked = true;
+    gameState = 'complete';
     hideHand();
+    highest = Math.max(highest, level);
+    localStorage.setItem('blockrush_highest', String(highest));
     confetti();
     sfxLevel();
-    levelText.textContent = 'Score: ' + score + '   |   Best: ' + best;
+    levelText.textContent = 'Level ' + level + ' complete. Score: ' + score + ' | Best: ' + best;
+    if (level >= MAX_LEVEL) hide(nextBtn); else show(nextBtn);
     show(levelModal);
   }
 
   function gameOver() {
-    locked = true;
+    gameState = 'over';
     hideHand();
     sfxOver();
-    overText.textContent = 'Score: ' + score + '   |   Best: ' + best;
+    overText.textContent = 'Level ' + level + ' | Score: ' + score + ' | Best: ' + best;
     show(overModal);
   }
 
   function startLevel(n) {
     level = n;
+    gameState = 'playing';
     levelLines = 0;
     busy = false;
-    locked = false;
+    handDone = false;
+    levelStartScore = score;
+    hide(levelModal);
+    hide(overModal);
     palette = PALETTES[(n - 1) % PALETTES.length];
     const lv = makeLevel(n);
     grid = lv.grid;
-    levelTarget = lv.target;
+    levelTarget = targetFor(n);
     newTray();
     if (n === 1) {
       tray[0] = {
@@ -420,16 +522,13 @@
         color: palette[0]
       };
     }
-    render();
-    if (n === 1 && !handDone) setTimeout(showHint, 500);
+    game.classList.add('active');
+    render(null, null);
+    if (n === 1) setTimeout(showHint, 500);
   }
 
-  function restartGame() {
-    hide(overModal);
-    hide(levelModal);
-    score = 0;
-    handDone = false;
-    startLevel(1);
+  function enterGame() {
+    startLevel(Math.min(highest + 1, MAX_LEVEL));
   }
 
   function startDrag(idx, e) {
@@ -484,62 +583,41 @@
     }
   }
 
-  function askNotify() {
-    show(notifyModal);
-  }
-
-  function closeNotifyAndEnter() {
-    hide(notifyModal);
-    game.classList.add('active');
-    setTimeout(() => { sizeBoard(); startLevel(1); }, 300);
-  }
-
   acceptBtn.addEventListener('click', () => {
     ensureAudio();
     sfxClick();
     welcome.classList.remove('active');
-    setTimeout(() => { askNotify(); }, 650);
-  });
-
-  notifyYes.addEventListener('click', () => {
-    ensureAudio();
-    try {
-      if ('Notification' in window && typeof Notification.requestPermission === 'function') {
-        const p = Notification.requestPermission();
-        if (p && typeof p.catch === 'function') p.catch(() => {});
-      }
-    } catch (e) { /* notifications not supported */ }
-    closeNotifyAndEnter();
-  });
-
-  notifyNo.addEventListener('click', () => {
-    ensureAudio();
-    closeNotifyAndEnter();
+    setTimeout(enterGame, 650);
   });
 
   trayEl.addEventListener('pointerdown', (e) => {
     const slot = e.target.closest('.slot');
-    if (!slot || drag) return;
+    if (!slot || drag || menuOpen || gameState !== 'playing') return;
     const idx = Number(slot.dataset.i);
-    if (!tray[idx] || busy || locked) return;
+    if (!tray[idx] || busy) return;
     e.preventDefault();
     ensureAudio();
     hideHand();
     startDrag(idx, e);
   });
 
+  menuBtn.addEventListener('click', () => { ensureAudio(); sfxClick(); openMenu(); });
+  backBtn.addEventListener('click', () => { ensureAudio(); sfxClick(); closeMenu(); });
+
   nextBtn.addEventListener('click', () => {
     ensureAudio();
     sfxClick();
-    hide(levelModal);
     startLevel(level + 1);
   });
+  levelMenuBtn.addEventListener('click', () => { ensureAudio(); sfxClick(); openMenu(); });
 
   retryBtn.addEventListener('click', () => {
     ensureAudio();
     sfxClick();
-    restartGame();
+    score = levelStartScore;
+    startLevel(level);
   });
+  overMenuBtn.addEventListener('click', () => { ensureAudio(); sfxClick(); openMenu(); });
 
   soundBtn.addEventListener('click', () => {
     ensureAudio();
@@ -555,10 +633,11 @@
   });
 
   soundBtn.textContent = soundOn ? 'Sound On' : 'Sound Off';
+  makeBg();
   sizeBoard();
   buildGrid();
   newTray();
   grid = new Array(N * N).fill(null);
-  render();
+  render(null, null);
   setTimeout(() => welcome.classList.add('active'), 80);
 })();
