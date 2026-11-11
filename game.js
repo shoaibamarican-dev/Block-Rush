@@ -1,6 +1,12 @@
 (() => {
   const N = 8;
-  const MAX_LEVEL = 100;
+  const MAX_LEVEL = 500;
+  const ADMOB = {
+    app: 'ca-app-pub-2888936097455517~7944464730',
+    banner: 'ca-app-pub-2888936097455517/1346945991',
+    reward: 'ca-app-pub-2888936097455517/2461037917',
+    testing: false
+  };
   const PALETTES = [
     ['#ff3b3b', '#ffd23f', '#3b82f6', '#ff8a1f', '#22c55e'],
     ['#22d3ee', '#a855f7', '#f472b6', '#4ade80', '#facc15'],
@@ -31,13 +37,14 @@
   const welcome = $('welcome'), game = $('game'), menu = $('menu'), acceptBtn = $('acceptBtn');
   const menuBtn = $('menuBtn'), backBtn = $('backBtn'), levelGrid = $('levelGrid');
   const levelModal = $('levelModal'), levelText = $('levelText'), nextBtn = $('nextBtn'), levelMenuBtn = $('levelMenuBtn');
-  const overModal = $('overModal'), overText = $('overText'), retryBtn = $('retryBtn'), overMenuBtn = $('overMenuBtn');
-  const gridEl = $('grid'), fxEl = $('fx'), trayEl = $('tray'), bgEl = $('bg');
+  const overModal = $('overModal'), overText = $('overText'), reviveBtn = $('reviveBtn'), retryBtn = $('retryBtn'), overMenuBtn = $('overMenuBtn');
+  const gridEl = $('grid'), fxEl = $('fx'), trayEl = $('tray'), bgEl = $('bg'), toastEl = $('toast');
   const crownScore = $('crownScore'), bigScore = $('bigScore'), levelLabel = $('levelLabel'), progress = $('progress');
   const soundBtn = $('soundBtn'), hand = $('hand');
 
   let cells = [], grid = [], tray = [], palette = PALETTES[0];
   let level = 1, levelLines = 0, levelTarget = 1, levelStartScore = 0, score = 0;
+  let snapshot = null;
   let highest = Number(localStorage.getItem('blockrush_highest') || 0);
   let best = Number(localStorage.getItem('blockrush_best') || 0);
   let busy = false, handDone = false, drag = null, audioCtx = null;
@@ -47,6 +54,13 @@
 
   function show(el) { el.classList.remove('hidden'); }
   function hide(el) { el.classList.add('hidden'); }
+
+  function toast(text) {
+    toastEl.textContent = text;
+    show(toastEl);
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => hide(toastEl), 2600);
+  }
 
   function ensureAudio() {
     try {
@@ -104,6 +118,21 @@
     [400, 320, 240, 160].forEach((f, i) => tone(f, i * 0.18, 0.3, 'sawtooth', 0.1));
   }
 
+  function hexToRgb(h) {
+    const n = parseInt(h.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function mixColor(h, t) {
+    const [r, g, b] = hexToRgb(h);
+    const target = t < 0 ? 0 : 255;
+    const p = Math.abs(t);
+    const m = (v) => Math.round(v + (target - v) * p);
+    return 'rgb(' + m(r) + ',' + m(g) + ',' + m(b) + ')';
+  }
+  function blockBg(h) {
+    return 'linear-gradient(160deg, ' + mixColor(h, 0.4) + ' 0%, ' + h + ' 55%, ' + mixColor(h, -0.3) + ' 100%)';
+  }
+
   function sizeBoard() {
     const avail = Math.min(window.innerWidth - 64, 380);
     const cell = Math.max(24, Math.floor((avail - (N - 1) * 4) / N));
@@ -131,7 +160,7 @@
       d.style.width = s + 'px';
       d.style.height = s + 'px';
       d.style.left = (Math.random() * 100) + '%';
-      d.style.background = colors[i % colors.length];
+      d.style.background = blockBg(colors[i % colors.length]);
       d.style.animationDuration = (14 + Math.random() * 12) + 's';
       d.style.animationDelay = (-Math.random() * 20) + 's';
       bgEl.appendChild(d);
@@ -148,7 +177,19 @@
     };
   }
 
-  function newTray() { tray = [randPiece(), randPiece(), randPiece()]; }
+  function newTray() {
+    tray = [randPiece(), randPiece(), randPiece()];
+    takeSnapshot();
+  }
+
+  function takeSnapshot() {
+    snapshot = {
+      grid: grid.slice(),
+      tray: tray.map(p => (p ? { shape: p.shape, color: p.color } : null)),
+      score: score,
+      levelLines: levelLines
+    };
+  }
 
   function fullLinesOf(g) {
     const out = [];
@@ -179,12 +220,16 @@
     return false;
   }
 
-  function wouldClear(shape, r0, c0) {
+  function clearableIfPlaced(shape, r0, c0) {
     const idxs = shape.map(([dr, dc]) => (r0 + dr) * N + (c0 + dc));
     idxs.forEach(i => { grid[i] = '#fff'; });
-    const n = fullLinesOf(grid).length;
+    const lines = fullLinesOf(grid);
     idxs.forEach(i => { grid[i] = null; });
-    return n > 0;
+    const set = new Set();
+    lines.forEach(L => {
+      for (let k = 0; k < N; k++) set.add(L.t === 'r' ? L.i * N + k : k * N + L.i);
+    });
+    return set;
   }
 
   function findHint() {
@@ -193,13 +238,13 @@
       if (!p) continue;
       for (let r = 0; r < N; r++)
         for (let c = 0; c < N; c++)
-          if (fits(p.shape, r, c) && wouldClear(p.shape, r, c)) return { idx: i, r, c };
+          if (fits(p.shape, r, c) && clearableIfPlaced(p.shape, r, c).size > 0) return { idx: i, r, c };
     }
     return null;
   }
 
   function targetFor(n) {
-    return n <= 10 ? n : Math.min(10 + Math.floor((n - 10) / 6), 20);
+    return Math.max(1, Math.round(1 + (n - 1) * 19 / (MAX_LEVEL - 1)));
   }
 
   function makeLevel(n) {
@@ -245,7 +290,7 @@
       b.style.top = r * (size + gap) + 'px';
       b.style.width = size + 'px';
       b.style.height = size + 'px';
-      b.style.background = color;
+      b.style.background = blockBg(color);
       wrap.appendChild(b);
     });
     return wrap;
@@ -284,7 +329,7 @@
       if (clearSet && clearSet.has(i)) cls += ' clearing';
       else if (popSet && popSet.has(i)) cls += ' pop';
       el.className = cls;
-      el.style.background = v || '';
+      el.style.background = v ? blockBg(v) : '';
     });
     renderTray();
     updateHud();
@@ -434,6 +479,7 @@
       b.className = 'lv';
       if (n <= highest) {
         b.classList.add('done');
+        b.innerHTML = CHECK.replace('<svg', '<svg') + '';
         b.innerHTML = '<span>' + n + '</span>';
       } else if (n === highest + 1) {
         b.classList.add('current');
@@ -521,6 +567,7 @@
         shape: Array.from({ length: lv.gapLen }, (_, i) => [0, i]),
         color: palette[0]
       };
+      takeSnapshot();
     }
     game.classList.add('active');
     render(null, null);
@@ -531,6 +578,105 @@
     startLevel(Math.min(highest + 1, MAX_LEVEL));
   }
 
+  function revive() {
+    if (!snapshot) { startLevel(level); return; }
+    grid = snapshot.grid.slice();
+    tray = snapshot.tray.map(p => (p ? { shape: p.shape, color: p.color } : null));
+    score = snapshot.score;
+    levelLines = snapshot.levelLines;
+    gameState = 'playing';
+    hide(overModal);
+    render(null, null);
+    toast('Blocks wapas aa gaye, khel jaari rakhein');
+  }
+
+  /* ---------- ADS ---------- */
+  let adPending = null;
+  let adRewarded = false;
+
+  function getAdPlugin() {
+    try {
+      return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob) || null;
+    } catch (e) { return null; }
+  }
+
+  function prepareReward() {
+    const A = getAdPlugin();
+    if (!A) return;
+    try {
+      const p = A.prepareRewardVideoAd({ adId: ADMOB.reward, isTesting: ADMOB.testing });
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* ignore */ }
+  }
+
+  function initAds() {
+    const A = getAdPlugin();
+    if (!A) return;
+    try {
+      const init = A.initialize({ requestTrackingAuthorization: false, initializeForTesting: ADMOB.testing });
+      if (init && init.catch) init.catch(() => {});
+      A.addListener('onRewardedVideoAdReward', () => { adRewarded = true; });
+      A.addListener('onRewardedVideoAdDismissed', () => {
+        const cb = adPending;
+        const ok = adRewarded;
+        adPending = null;
+        adRewarded = false;
+        prepareReward();
+        if (cb) cb(ok);
+      });
+      A.addListener('onRewardedVideoAdFailedToLoad', () => {
+        const cb = adPending;
+        adPending = null;
+        if (cb) cb(false);
+      });
+      const b = A.showBanner({ adId: ADMOB.banner, adSize: 'BANNER', position: 'BOTTOM_CENTER', margin: 0, isTesting: ADMOB.testing });
+      if (b && b.catch) b.catch(() => {});
+      prepareReward();
+    } catch (e) { /* ignore */ }
+  }
+
+  function showFakeAd(cb) {
+    const box = document.createElement('div');
+    box.className = 'adsim';
+    let left = 3;
+    box.textContent = 'Ad playing... ' + left;
+    document.body.appendChild(box);
+    const t = setInterval(() => {
+      left--;
+      if (left > 0) { box.textContent = 'Ad playing... ' + left; return; }
+      clearInterval(t);
+      box.remove();
+      cb(true);
+    }, 1000);
+  }
+
+  function showRewardAd(cb) {
+    const A = getAdPlugin();
+    if (!A) { showFakeAd(cb); return; }
+    adPending = cb;
+    adRewarded = false;
+    try {
+      const p = A.showRewardVideoAd();
+      if (p && p.catch) p.catch(() => {
+        adPending = null;
+        cb(false);
+      });
+    } catch (e) {
+      adPending = null;
+      cb(false);
+    }
+  }
+
+  reviveBtn.addEventListener('click', () => {
+    ensureAudio();
+    sfxClick();
+    showRewardAd((ok) => {
+      if (ok) revive();
+      else toast('Ad abhi load nahi hua. Thodi der baad dobara try karein.');
+    });
+  });
+
+  /* ---------- DRAG ---------- */
   function startDrag(idx, e) {
     const p = tray[idx];
     const cell = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell'), 10);
@@ -560,8 +706,11 @@
     const ok = fits(p.shape, r, c);
     drag.target = ok ? { r, c } : null;
 
-    cells.forEach(el => el.classList.remove('preview'));
-    if (ok) p.shape.forEach(([dr, dc]) => cells[(r + dr) * N + (c + dc)].classList.add('preview'));
+    cells.forEach(el => el.classList.remove('preview', 'warn'));
+    if (ok) {
+      p.shape.forEach(([dr, dc]) => cells[(r + dr) * N + (c + dc)].classList.add('preview'));
+      clearableIfPlaced(p.shape, r, c).forEach(i => cells[i].classList.add('warn'));
+    }
   }
 
   function onMove(e) { moveDrag(e.clientX, e.clientY); }
@@ -572,7 +721,7 @@
     window.removeEventListener('pointercancel', onUp);
     const d = drag;
     drag = null;
-    cells.forEach(el => el.classList.remove('preview'));
+    cells.forEach(el => el.classList.remove('preview', 'warn'));
     d.ghost.remove();
     if (d.target) {
       place(d.idx, d.target.r, d.target.c);
@@ -583,6 +732,7 @@
     }
   }
 
+  /* ---------- BUTTONS ---------- */
   acceptBtn.addEventListener('click', () => {
     ensureAudio();
     sfxClick();
@@ -604,11 +754,7 @@
   menuBtn.addEventListener('click', () => { ensureAudio(); sfxClick(); openMenu(); });
   backBtn.addEventListener('click', () => { ensureAudio(); sfxClick(); closeMenu(); });
 
-  nextBtn.addEventListener('click', () => {
-    ensureAudio();
-    sfxClick();
-    startLevel(level + 1);
-  });
+  nextBtn.addEventListener('click', () => { ensureAudio(); sfxClick(); startLevel(level + 1); });
   levelMenuBtn.addEventListener('click', () => { ensureAudio(); sfxClick(); openMenu(); });
 
   retryBtn.addEventListener('click', () => {
@@ -632,12 +778,14 @@
     if (level === 1 && !handDone && !drag) showHint();
   });
 
+  /* ---------- INIT ---------- */
   soundBtn.textContent = soundOn ? 'Sound On' : 'Sound Off';
   makeBg();
   sizeBoard();
   buildGrid();
-  newTray();
   grid = new Array(N * N).fill(null);
+  newTray();
   render(null, null);
+  initAds();
   setTimeout(() => welcome.classList.add('active'), 80);
 })();

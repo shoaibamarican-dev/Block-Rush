@@ -69,9 +69,9 @@
   <div class="card">
     <h2>Level Complete!</h2>
     <p id="levelText"></p>
-    <div class="row">
+    <div class="stack">
+      <button id="nextBtn" class="btn green">Next Level</button>
       <button id="levelMenuBtn" class="btn ghost">Levels</button>
-      <button id="nextBtn" class="btn">Next Level</button>
     </div>
   </div>
 </div>
@@ -80,12 +80,15 @@
   <div class="card">
     <h2>Game Over</h2>
     <p id="overText"></p>
-    <div class="row">
+    <div class="stack">
+      <button id="reviveBtn" class="btn green">Watch Ad to Continue</button>
+      <button id="retryBtn" class="btn blue">Try Again</button>
       <button id="overMenuBtn" class="btn ghost">Levels</button>
-      <button id="retryBtn" class="btn">Try Again</button>
     </div>
   </div>
 </div>
+
+<div id="toast" class="toast hidden"></div>
 
 <script src="game.js"></script>
 </body>

@@ -25,16 +25,21 @@ jobs:
           cp index.html style.css game.js www/
           cp -r assets www/
 
-      - name: Install Capacitor
+      - name: Install Capacitor and AdMob
         run: |
           npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor-community/admob
 
       - name: Create Android project
         run: |
           npx cap init "Block Rush" com.blockrush.game --web-dir=www
           npx cap add android
           npx cap sync android
+
+      - name: Add AdMob app ID to Android manifest
+        run: |
+          sed -i 's#</application>#    <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-2888936097455517~7944464730"/>\n  </application>#' android/app/src/main/AndroidManifest.xml
+          grep -c "APPLICATION_ID" android/app/src/main/AndroidManifest.xml
 
       - name: Install ImageMagick
         run: |

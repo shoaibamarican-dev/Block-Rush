@@ -1,17 +1,9 @@
-# Block Rush
+# Block Rush v4
 
-Portrait block puzzle game with a welcome screen, 100 levels, level menu, tutorial hand, animated blocks and background, line burst effects, sound effects and a level complete popup.
+Portrait block puzzle game with 500 levels, a level menu, 3D style blocks, line glow before clearing, game over revive with a rewarded ad, and an AdMob banner.
 
-## Files
-- index.html: screens and popups
-- style.css: colors and animations
-- game.js: game logic, levels and sounds
-- assets/icon.png: app logo and icon
-- assets/welcome.png: welcome image
-- .github/workflows/android.yml: builds the APK on GitHub
-
-## Play in a browser
-Enable GitHub Pages (Settings, Pages, branch main, root folder) and open the link.
-
-## Build APK
-Push the code to GitHub. The Actions tab builds the APK automatically. Download BlockRush-APK from the run's Artifacts.
+## Ads
+- Banner ad and rewarded ad work only in the Android APK (built by GitHub Actions).
+- In a browser (GitHub Pages) a simulated 3 second ad is shown instead.
+- AdMob IDs are in the ADMOB object at the top of game.js.
+- Do not tap your own ads. This can get your AdMob account suspended.
