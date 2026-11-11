@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b2a5a">
+<title>Block Rush</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="bg" aria-hidden="true"></div>
+
+<section id="welcome" class="screen active">
+  <div class="welcome-wrap">
+    <img id="welcomeImg" src="assets/welcome.png" alt="Welcome to Block Rush">
+    <button id="acceptBtn" class="accept-hit" aria-label="Accept and Let's Fun"></button>
+  </div>
+</section>
+
+<section id="game" class="screen">
+  <div class="game-inner">
+    <header class="topbar">
+      <div class="crown">
+        <svg viewBox="0 0 24 24" width="30" height="30"><path d="M3 18 L5 7 L9 12 L12 5 L15 12 L19 7 L21 18 Z" fill="#ffc83d" stroke="#b7791f" stroke-width="0.6"/></svg>
+        <span id="crownScore">0</span>
+      </div>
+      <img class="logo" src="assets/icon.png" alt="Block Rush logo">
+      <div class="btns">
+        <button id="menuBtn" class="pill">Levels</button>
+        <button id="soundBtn" class="pill">Sound On</button>
+      </div>
+    </header>
+
+    <div class="level-row">
+      <span id="levelLabel">LEVEL 1</span>
+      <span id="progress">Lines 0/1</span>
+    </div>
+
+    <div id="bigScore">0</div>
+
+    <div id="board">
+      <div id="grid"></div>
+      <div id="fx"></div>
+    </div>
+
+    <div id="tray"></div>
+  </div>
+
+  <div id="hand" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="56" height="56">
+      <path d="M9 1.5a2 2 0 0 1 2 2V10l.5-.1a2 2 0 0 1 2.5 1.9v.6l.4-.1a2 2 0 0 1 2.6 1.9V15a6 6 0 0 1-6 6h-1.2a6 6 0 0 1-4.6-2.2L2.2 14a1.8 1.8 0 0 1 2.6-2.5L7 13.2V3.5a2 2 0 0 1 2-2z" fill="#ffffff" stroke="#1b2a5a" stroke-width="0.8"/>
+    </svg>
+  </div>
+</section>
+
+<section id="menu" class="screen">
+  <div class="menu-inner">
+    <header class="menu-top">
+      <img class="logo-sm" src="assets/icon.png" alt="Block Rush logo">
+      <h2>Choose Level</h2>
+      <button id="backBtn" class="pill">Back</button>
+    </header>
+    <div id="levelGrid"></div>
+  </div>
+</section>
+
+<div id="levelModal" class="overlay hidden">
+  <div class="card win">
+    <img class="card-logo" src="assets/icon.png" alt="">
+    <h2>Level Complete!</h2>
+    <div id="levelText"></div>
+    <div class="stack">
+      <button id="nextBtn" class="btn green">Next Level</button>
+      <button id="levelMenuBtn" class="btn ghost">Levels</button>
+    </div>
+  </div>
+</div>
+
+<div id="overModal" class="overlay hidden">
+  <div class="card lose">
+    <img class="card-logo" src="assets/icon.png" alt="">
+    <h2>Game Over</h2>
+    <div id="overText"></div>
+    <div class="stack">
+      <button id="reviveBtn" class="btn green">Watch Ad to Continue</button>
+      <p class="hint">Aakhri 3 blocks wapas aayenge</p>
+      <button id="retryBtn" class="btn blue">Try Again</button>
+      <button id="overMenuBtn" class="btn ghost">Levels</button>
+    </div>
+  </div>
+</div>
+
+<div id="adSlot" class="adslot hidden">Ad space: APK mein yahan real banner aayega</div>
+<div id="toast" class="toast hidden"></div>
+
+<script src="admob.bundle.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

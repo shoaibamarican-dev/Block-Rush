@@ -1,0 +1,1 @@
+/* Browser preview fallback. The Android workflow replaces this file with the bundled native AdMob adapter. */

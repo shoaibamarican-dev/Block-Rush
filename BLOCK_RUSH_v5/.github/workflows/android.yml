@@ -1,0 +1,79 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Prepare web folder
+        run: |
+          mkdir -p www
+          cp index.html style.css game.js admob.bundle.js www/
+          cp -r assets www/
+
+      - name: Install Capacitor and AdMob
+        run: |
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor-community/admob esbuild
+          npx esbuild admob-entry.js --bundle --format=iife --outfile=www/admob.bundle.js
+
+      - name: Create Android project
+        run: |
+          npx cap init "Block Rush" com.blockrush.game --web-dir=www
+          npx cap add android
+          npx cap sync android
+
+      - name: Add AdMob app ID to Android manifest
+        run: |
+          sed -i 's#</application>#    <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-2888936097455517~7944464730"/>\n  </application>#' android/app/src/main/AndroidManifest.xml
+          grep -c "APPLICATION_ID" android/app/src/main/AndroidManifest.xml
+
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+
+      - name: Set app icon
+        run: |
+          for d in android/app/src/main/res/mipmap-*; do
+            case "$d" in
+              *xxxhdpi) s=192 ;;
+              *xxhdpi) s=144 ;;
+              *xhdpi) s=96 ;;
+              *hdpi) s=72 ;;
+              *mdpi) s=48 ;;
+              *) continue ;;
+            esac
+            convert assets/icon.png -resize ${s}x${s} "$d/ic_launcher.png"
+            convert assets/icon.png -resize ${s}x${s} "$d/ic_launcher_round.png"
+            convert assets/icon.png -resize ${s}x${s} "$d/ic_launcher_foreground.png"
+          done
+
+      - name: Fix Kotlin duplicate classes
+        run: |
+          echo "configurations.all { exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8' }" >> android/app/build.gradle
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockRush-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
