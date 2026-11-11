@@ -55,6 +55,12 @@
   function show(el) { el.classList.remove('hidden'); }
   function hide(el) { el.classList.add('hidden'); }
 
+  function statsHtml(l, sc, b) {
+    return '<div class="stats"><div><span>LEVEL</span><b>' + l + '</b></div>'
+      + '<div><span>SCORE</span><b>' + sc + '</b></div>'
+      + '<div><span>BEST</span><b>' + b + '</b></div></div>';
+  }
+
   function toast(text) {
     toastEl.textContent = text;
     show(toastEl);
@@ -244,7 +250,7 @@
   }
 
   function targetFor(n) {
-    return Math.max(1, Math.round(1 + (n - 1) * 19 / (MAX_LEVEL - 1)));
+    return Math.min(n, 20);
   }
 
   function makeLevel(n) {
@@ -535,7 +541,7 @@
     localStorage.setItem('blockrush_highest', String(highest));
     confetti();
     sfxLevel();
-    levelText.textContent = 'Level ' + level + ' complete. Score: ' + score + ' | Best: ' + best;
+    levelText.innerHTML = statsHtml(level, score, best);
     if (level >= MAX_LEVEL) hide(nextBtn); else show(nextBtn);
     show(levelModal);
   }
@@ -544,7 +550,7 @@
     gameState = 'over';
     hideHand();
     sfxOver();
-    overText.textContent = 'Level ' + level + ' | Score: ' + score + ' | Best: ' + best;
+    overText.innerHTML = statsHtml(level, score, best);
     show(overModal);
   }
 
@@ -611,7 +617,11 @@
 
   function initAds() {
     const A = getAdPlugin();
-    if (!A) return;
+    if (!A) {
+      const slot = document.getElementById('adSlot');
+      if (slot) slot.classList.remove('hidden');
+      return;
+    }
     try {
       const init = A.initialize({ requestTrackingAuthorization: false, initializeForTesting: ADMOB.testing });
       if (init && init.catch) init.catch(() => {});

@@ -66,9 +66,10 @@
 </section>
 
 <div id="levelModal" class="overlay hidden">
-  <div class="card">
+  <div class="card win">
+    <img class="card-logo" src="assets/icon.png" alt="">
     <h2>Level Complete!</h2>
-    <p id="levelText"></p>
+    <div id="levelText"></div>
     <div class="stack">
       <button id="nextBtn" class="btn green">Next Level</button>
       <button id="levelMenuBtn" class="btn ghost">Levels</button>
@@ -77,17 +78,20 @@
 </div>
 
 <div id="overModal" class="overlay hidden">
-  <div class="card">
+  <div class="card lose">
+    <img class="card-logo" src="assets/icon.png" alt="">
     <h2>Game Over</h2>
-    <p id="overText"></p>
+    <div id="overText"></div>
     <div class="stack">
       <button id="reviveBtn" class="btn green">Watch Ad to Continue</button>
+      <p class="hint">Aakhri 3 blocks wapas aayenge</p>
       <button id="retryBtn" class="btn blue">Try Again</button>
       <button id="overMenuBtn" class="btn ghost">Levels</button>
     </div>
   </div>
 </div>
 
+<div id="adSlot" class="adslot hidden">Ad space: APK mein yahan real banner aayega</div>
 <div id="toast" class="toast hidden"></div>
 
 <script src="game.js"></script>
